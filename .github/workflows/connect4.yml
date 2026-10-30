@@ -3,6 +3,7 @@ name: Connect Four
 # Friends play by opening an issue titled "c4|drop|<1-7>" or "c4|reset"
 # (the README links pre-fill it). This job plays the move, commits the new
 # board to the README, replies on the issue and closes it.
+# Engine + tests: game/connect4.py, game/test_connect4.py
 on:
   issues:
     types: [opened]
