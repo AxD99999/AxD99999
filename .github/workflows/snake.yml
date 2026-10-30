@@ -2,6 +2,7 @@ name: Snake
 
 # Eats the contribution graph daily and publishes light/dark SVGs to the
 # "output" branch, which the README embeds via raw.githubusercontent.com.
+# Run it once by hand (Actions → Snake → Run workflow) after setup.
 on:
   schedule:
     - cron: "23 5 * * *"
