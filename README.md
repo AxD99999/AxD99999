@@ -17,7 +17,7 @@
 
 ### 🎮 Connect Four — the internet vs. itself
 
-**Game #1 · move 1 · 🔴 Red to play** — click a column to drop a disc ⬇️
+**Game #1 · move 2 · 🟡 Yellow to play** — click a column to drop a disc ⬇️
 
 | [**1**](https://github.com/AxD99999/AxD99999/issues/new?title=c4%7Cdrop%7C1&body=Just%20hit%20Create%20-%20a%20bot%20will%20play%20your%20move%20and%20close%20this%20issue.) | [**2**](https://github.com/AxD99999/AxD99999/issues/new?title=c4%7Cdrop%7C2&body=Just%20hit%20Create%20-%20a%20bot%20will%20play%20your%20move%20and%20close%20this%20issue.) | [**3**](https://github.com/AxD99999/AxD99999/issues/new?title=c4%7Cdrop%7C3&body=Just%20hit%20Create%20-%20a%20bot%20will%20play%20your%20move%20and%20close%20this%20issue.) | [**4**](https://github.com/AxD99999/AxD99999/issues/new?title=c4%7Cdrop%7C4&body=Just%20hit%20Create%20-%20a%20bot%20will%20play%20your%20move%20and%20close%20this%20issue.) | [**5**](https://github.com/AxD99999/AxD99999/issues/new?title=c4%7Cdrop%7C5&body=Just%20hit%20Create%20-%20a%20bot%20will%20play%20your%20move%20and%20close%20this%20issue.) | [**6**](https://github.com/AxD99999/AxD99999/issues/new?title=c4%7Cdrop%7C6&body=Just%20hit%20Create%20-%20a%20bot%20will%20play%20your%20move%20and%20close%20this%20issue.) | [**7**](https://github.com/AxD99999/AxD99999/issues/new?title=c4%7Cdrop%7C7&body=Just%20hit%20Create%20-%20a%20bot%20will%20play%20your%20move%20and%20close%20this%20issue.) |
 |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -26,7 +26,7 @@
 | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ |
 | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ |
 | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ |
-| ⚪ | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ |
+| 🔴 | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ | ⚪ |
 
 <sub>Clicking a column opens a pre-filled issue — just hit <b>Create</b>. A bot plays it in ~30s and refreshes this board. Anyone can play either colour.</sub>
 
@@ -34,9 +34,13 @@
 
 <details><summary><b>📜 Recent moves &amp; 🏆 hall of fame</b></summary>
 
-_No moves yet this game — be the first!_
+| # | Player | Disc | Column |
+|:-:|:--|:-:|:-:|
+| 1 | [@AxD99999](https://github.com/AxD99999) | 🔴 | 1 |
 
 **Games finished:** 0 · 🔴 0 · 🟡 0 · 🤝 0
+
+**Most moves:** [@AxD99999](https://github.com/AxD99999) (1)
 
 </details>
 <!-- C4:END -->

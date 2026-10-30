@@ -47,7 +47,7 @@
       "."
     ],
     [
-      ".",
+      "R",
       ".",
       ".",
       ".",
@@ -56,16 +56,25 @@
       "."
     ]
   ],
-  "turn": "R",
+  "turn": "Y",
   "status": "playing",
   "winner": null,
   "win_cells": [],
-  "moves": [],
+  "moves": [
+    {
+      "user": "AxD99999",
+      "col": 1,
+      "piece": "R",
+      "issue": 1
+    }
+  ],
   "stats": {
     "games": 0,
     "red_wins": 0,
     "yellow_wins": 0,
     "draws": 0,
-    "players": {}
+    "players": {
+      "AxD99999": 1
+    }
   }
 }
