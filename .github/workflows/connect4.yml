@@ -1,0 +1,62 @@
+name: Connect Four
+
+# Friends play by opening an issue titled "c4|drop|<1-7>" or "c4|reset"
+# (the README links pre-fill it). This job plays the move, commits the new
+# board to the README, replies on the issue and closes it.
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  move:
+    if: startsWith(github.event.issue.title, 'c4|')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Untrusted input: only ever passed through env vars, never ${{ }} in scripts.
+      TITLE: ${{ github.event.issue.title }}
+      PLAYER: ${{ github.event.issue.user.login }}
+      OWNER: ${{ github.repository_owner }}
+      ISSUE: ${{ github.event.issue.number }}
+      BRANCH: ${{ github.event.repository.default_branch }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Play the move
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          comment="$RUNNER_TEMP/comment.md"
+
+          # Retry so simultaneous moves don't clobber each other: each attempt
+          # replays the move on top of the latest board.
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet origin "$BRANCH"
+            git reset --quiet --hard "origin/$BRANCH"
+            python3 game/connect4.py move --title "$TITLE" --user "$PLAYER" \
+              --owner "$OWNER" --issue "$ISSUE" --comment-out "$comment"
+            if git diff --quiet; then
+              exit 0  # rejected move: nothing to commit, just reply
+            fi
+            git commit --quiet -am "connect4: @$PLAYER played \"$TITLE\" (#$ISSUE)"
+            if git push --quiet origin "HEAD:$BRANCH"; then
+              exit 0
+            fi
+            sleep $((attempt * 3))
+          done
+          echo "⚠️ Couldn't save your move (the board was busy). Please try again!" > "$comment"
+
+      - name: Reply and close the issue
+        if: always()
+        run: |
+          comment="$RUNNER_TEMP/comment.md"
+          [ -s "$comment" ] || echo "⚠️ Something went wrong playing that move — please try again." > "$comment"
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file "$comment"
+          gh issue close "$ISSUE" --repo "$GITHUB_REPOSITORY"
