@@ -1,0 +1,42 @@
+name: Update Profile & 3D Skyline
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/build_terminal.py"
+      - ".github/workflows/update-profile.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate terminal SVGs, isometric skyline & 3D dataset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USERNAME: ${{ github.repository_owner }}
+        run: python3 scripts/build_terminal.py
+
+      - name: Commit updated assets and 3D data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/terminal-dark.svg assets/terminal-light.svg assets/skyline-dark.svg assets/skyline-light.svg docs/data.json
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: refresh live profile telemetry & 3d skyline"
+          git push

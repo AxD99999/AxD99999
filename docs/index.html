@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AxD99999 — Interactive 3D Contribution Skyline</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: rgba(22, 27, 34, 0.82);
+      --border: #30363d;
+      --fg: #e6edf3;
+      --muted: #8b949e;
+      --accent: #3fb950;
+      --accent-soft: rgba(63, 185, 80, 0.16);
+      --font: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    [data-theme="light"] {
+      --bg: #f6f8fa;
+      --panel: rgba(255, 255, 255, 0.86);
+      --border: #d0d7de;
+      --fg: #1f2328;
+      --muted: #656d76;
+      --accent-soft: rgba(26, 127, 55, 0.12);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+    #stage {
+      position: fixed;
+      inset: 0;
+      cursor: grab;
+    }
+    #stage:active { cursor: grabbing; }
+
+    .hud {
+      position: fixed;
+      z-index: 10;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 15px;
+      font-size: 12px;
+      line-height: 1.5;
+      user-select: none;
+    }
+    .hud-tl {
+      top: 16px;
+      left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-width: min(360px, calc(100vw - 32px));
+    }
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      flex-shrink: 0;
+    }
+    .back-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 500;
+      margin-left: auto;
+      font-size: 11px;
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 999px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .back-link:hover { color: var(--fg); border-color: var(--accent); }
+    .stats-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+    .stats-row strong { color: var(--fg); font-weight: 700; }
+
+    .hud-bl {
+      bottom: 16px;
+      left: 16px;
+      padding: 8px 12px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .hud-br {
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      max-width: calc(100vw - 32px);
+    }
+    .sep {
+      width: 1px;
+      height: 18px;
+      background: var(--border);
+      margin: 0 2px;
+    }
+    button {
+      font-family: inherit;
+      font-size: 11.5px;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 5px 9px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    button:hover { color: var(--fg); background: rgba(127, 127, 127, 0.12); }
+    button.active {
+      color: var(--accent);
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      padding: 0;
+      border: 2px solid transparent;
+    }
+    .swatch.active { border-color: var(--fg); transform: scale(1.1); }
+
+    #tooltip {
+      position: fixed;
+      z-index: 20;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(14px, -50%);
+      transition: opacity 0.12s ease;
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 11px;
+      font-size: 11.5px;
+      white-space: nowrap;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    }
+    #tooltip.show { opacity: 1; }
+    #tooltip .tt-date { color: var(--muted); font-size: 10.5px; }
+    #tooltip .tt-count { font-weight: 700; color: var(--fg); margin-top: 2px; }
+    #tooltip .tt-count span { color: var(--accent); }
+
+    @media (max-width: 720px) {
+      .hud-bl { display: none; }
+      .hud-br { left: 16px; right: 16px; justify-content: center; }
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <div class="hud hud-tl">
+    <div class="title-row">
+      <span class="dot"></span>
+      <span id="repo-title">AxD99999 / skyline-3d</span>
+      <a class="back-link" href="https://github.com/AxD99999">GitHub ↗</a>
+    </div>
+    <div class="stats-row" id="stats-row">Loading contribution data…</div>
+  </div>
+
+  <div class="hud hud-bl">Drag orbit · Scroll zoom · Right-drag pan · Click pillar to focus</div>
+
+  <div class="hud hud-br">
+    <button data-cam="iso" class="active">Iso</button>
+    <button data-cam="top">Top</button>
+    <button data-cam="front">Front</button>
+    <button data-cam="fly">Fly</button>
+    <div class="sep"></div>
+    <button id="btn-rotate">Auto-Rotate</button>
+    <button id="btn-theme">Light</button>
+    <div class="sep"></div>
+    <button class="swatch active" data-accent="emerald" style="background:#3fb950" title="Emerald"></button>
+    <button class="swatch" data-accent="ice" style="background:#58a6ff" title="Ice Blue"></button>
+    <button class="swatch" data-accent="amber" style="background:#e3b341" title="Amber"></button>
+  </div>
+
+  <div id="tooltip">
+    <div class="tt-date" id="tt-date"></div>
+    <div class="tt-count" id="tt-count"></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const PALETTES = {
+      emerald: {
+        dark:  { accent: '#3fb950', levels: [0x161b22, 0x0e4429, 0x006d32, 0x26a641, 0x39d353] },
+        light: { accent: '#1a7f37', levels: [0xebedf0, 0x9be9a8, 0x40c463, 0x30a14e, 0x216e39] },
+      },
+      ice: {
+        dark:  { accent: '#58a6ff', levels: [0x161b22, 0x0d2b4e, 0x154c8a, 0x2b7de9, 0x79c0ff] },
+        light: { accent: '#0969da', levels: [0xebedf0, 0xb6e3ff, 0x54aeff, 0x0969da, 0x0550ae] },
+      },
+      amber: {
+        dark:  { accent: '#e3b341', levels: [0x161b22, 0x4a3109, 0x80530f, 0xc2811b, 0xf2cc60] },
+        light: { accent: '#9a6700', levels: [0xebedf0, 0xfce19c, 0xf0b429, 0xbf8700, 0x7d4e00] },
+      },
+    };
+
+    const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const state = {
+      theme: window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark',
+      accent: 'emerald',
+      mode: 'iso',
+      autoRotate: false,
+      flyTime: 0,
+    };
+
+    const stage = document.getElementById('stage');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 300);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.06;
+    stage.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 12;
+    controls.maxDistance = 110;
+    controls.maxPolarAngle = Math.PI / 2 - 0.04;
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x161b22, 0.9);
+    scene.add(hemiLight);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.35);
+    keyLight.position.set(28, 46, 26);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.near = 10;
+    keyLight.shadow.camera.far = 120;
+    const sc = 36;
+    keyLight.shadow.camera.left = -sc;
+    keyLight.shadow.camera.right = sc;
+    keyLight.shadow.camera.top = sc;
+    keyLight.shadow.camera.bottom = -sc;
+    keyLight.shadow.bias = -0.0005;
+    scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0x58a6ff, 0.45);
+    rimLight.position.set(-30, 18, -22);
+    scene.add(rimLight);
+
+    const COLS = 52, ROWS = 7, STEP = 1.08;
+    const boardW = COLS * STEP + 2.2;
+    const boardD = ROWS * STEP + 2.2;
+    const baseMat = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.1 });
+    const baseMesh = new THREE.Mesh(new THREE.BoxGeometry(boardW, 0.7, boardD), baseMat);
+    baseMesh.position.set(0, -0.35, 0);
+    baseMesh.receiveShadow = true;
+    scene.add(baseMesh);
+
+    const gridHelper = new THREE.GridHelper(120, 60, 0x30363d, 0x1b2028);
+    gridHelper.position.y = -0.71;
+    scene.add(gridHelper);
+
+    const camGoalPos = new THREE.Vector3();
+    const camGoalTarget = new THREE.Vector3();
+    let camTransition = 0;
+
+    function setCameraPreset(preset, instant = false) {
+      state.mode = preset;
+      document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('active', b.dataset.cam === preset));
+      if (preset === 'fly') return;
+      if (preset === 'iso') {
+        camGoalPos.set(34, 27, 34);
+        camGoalTarget.set(0, 1.4, 0);
+      } else if (preset === 'top') {
+        camGoalPos.set(0, 56, 0.01);
+        camGoalTarget.set(0, 0, 0);
+      } else if (preset === 'front') {
+        camGoalPos.set(0, 11, 44);
+        camGoalTarget.set(0, 2.2, 0);
+      }
+      if (instant) {
+        camera.position.copy(camGoalPos);
+        controls.target.copy(camGoalTarget);
+        controls.update();
+      } else {
+        camTransition = 1.0;
+      }
+    }
+
+    const pillars = [];
+    const pillarGroup = new THREE.Group();
+    scene.add(pillarGroup);
+    const boxGeo = new THREE.BoxGeometry(0.84, 1, 0.84);
+    boxGeo.translate(0, 0.5, 0);
+
+    function makeFallbackData() {
+      const weeks = [];
+      for (let w = 0; w < 52; w++) {
+        const col = [];
+        for (let d = 0; d < 7; d++) {
+          const v = Math.sin(w * 0.27 + d * 0.55) * 0.5 + Math.cos(w * 0.13 - d * 0.9) * 0.35;
+          const count = v < 0.05 ? 0 : Math.max(1, Math.round((v + 0.3) ** 2 * 5));
+          const level = count === 0 ? 0 : count <= 2 ? 1 : count <= 5 ? 2 : count <= 9 ? 3 : 4;
+          col.push({ date: `Week ${w + 1}`, count, level });
+        }
+        weeks.push(col);
+      }
+      return {
+        username: 'AxD99999',
+        stats: { total: 1120, peakWeek: 42, streak: 14, peakDay: 14 },
+        weeks,
+      };
+    }
+
+    function buildSkyline(data) {
+      document.getElementById('repo-title').textContent = `${data.username} / skyline-3d`;
+      document.getElementById('stats-row').innerHTML =
+        `<span><strong>${data.stats.total.toLocaleString()}</strong> commits</span>` +
+        `<span><strong>${data.stats.peakWeek}/wk</strong> peak</span>` +
+        `<span><strong>${data.stats.streak}d</strong> streak</span>`;
+
+      const maxDay = Math.max(data.stats.peakDay || 1, 1);
+      const startX = -((COLS - 1) * STEP) / 2;
+      const startZ = -((ROWS - 1) * STEP) / 2;
+
+      data.weeks.forEach((col, w) => {
+        col.forEach((day, d) => {
+          const cnt = day.count || 0;
+          const lvl = Math.max(0, Math.min(4, day.level || 0));
+          const targetH = cnt === 0 ? 0.16 : 0.45 + Math.sqrt(cnt / maxDay) * 8.6;
+
+          const mat = new THREE.MeshStandardMaterial({
+            roughness: lvl === 0 ? 0.85 : 0.38,
+            metalness: lvl === 0 ? 0.05 : 0.14,
+          });
+          const mesh = new THREE.Mesh(boxGeo, mat);
+          mesh.position.set(startX + w * STEP, 0, startZ + d * STEP);
+          mesh.scale.set(1, 0.01, 1);
+          mesh.castShadow = cnt > 0;
+          mesh.receiveShadow = true;
+          mesh.userData = {
+            w, d, count: cnt, level: lvl, date: day.date,
+            targetH, delay: w * 0.014 + d * 0.018,
+          };
+          pillarGroup.add(mesh);
+          pillars.push(mesh);
+        });
+      });
+
+      applyTheme();
+      setCameraPreset('iso', true);
+    }
+
+    function applyTheme() {
+      const dark = state.theme === 'dark';
+      document.documentElement.dataset.theme = state.theme;
+      const pal = PALETTES[state.accent][state.theme];
+      document.documentElement.style.setProperty('--accent', pal.accent);
+      document.getElementById('btn-theme').textContent = dark ? 'Light' : 'Dark';
+
+      const bgHex = dark ? 0x0d1117 : 0xf6f8fa;
+      scene.background = new THREE.Color(bgHex);
+      scene.fog = new THREE.FogExp2(bgHex, dark ? 0.0085 : 0.007);
+
+      baseMat.color.setHex(dark ? 0x161b22 : 0xeaeef2);
+      hemiLight.color.setHex(dark ? 0xdbe9ff : 0xffffff);
+      hemiLight.groundColor.setHex(dark ? 0x0d1117 : 0xcbd5e1);
+      hemiLight.intensity = dark ? 0.9 : 1.15;
+      keyLight.intensity = dark ? 1.35 : 1.15;
+      rimLight.color.set(pal.accent);
+      rimLight.intensity = dark ? 0.55 : 0.25;
+
+      gridHelper.material.color.setHex(dark ? 0x21262d : 0xd8dee4);
+      gridHelper.material.opacity = dark ? 0.55 : 0.7;
+      gridHelper.material.transparent = true;
+
+      pillars.forEach(mesh => {
+        const lvl = mesh.userData.level;
+        mesh.material.color.setHex(pal.levels[lvl]);
+        mesh.material.emissive.setHex(lvl === 4 ? pal.levels[4] : 0x000000);
+        mesh.material.emissiveIntensity = lvl === 4 ? (dark ? 0.18 : 0.05) : 0;
+      });
+    }
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2(-99, -99);
+    const tooltip = document.getElementById('tooltip');
+    const ttDate = document.getElementById('tt-date');
+    const ttCount = document.getElementById('tt-count');
+    let hovered = null;
+    let downPos = { x: 0, y: 0 };
+
+    function setHover(mesh) {
+      if (hovered === mesh) return;
+      if (hovered) {
+        const pal = PALETTES[state.accent][state.theme];
+        const lvl = hovered.userData.level;
+        hovered.material.emissive.setHex(lvl === 4 ? pal.levels[4] : 0x000000);
+        hovered.material.emissiveIntensity = lvl === 4 ? (state.theme === 'dark' ? 0.18 : 0.05) : 0;
+      }
+      hovered = mesh;
+      if (hovered) {
+        const pal = PALETTES[state.accent][state.theme];
+        hovered.material.emissive.set(pal.accent);
+        hovered.material.emissiveIntensity = 0.45;
+        const { date, d, count } = hovered.userData;
+        ttDate.textContent = `${date || 'Contribution'} · ${WEEKDAYS[d]}`;
+        ttCount.innerHTML = `<span>${count}</span> contribution${count === 1 ? '' : 's'}`;
+        tooltip.classList.add('show');
+      } else {
+        tooltip.classList.remove('show');
+      }
+    }
+
+    stage.addEventListener('pointermove', (e) => {
+      pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+      pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      tooltip.style.left = `${e.clientX}px`;
+      tooltip.style.top = `${e.clientY}px`;
+    });
+    stage.addEventListener('pointerleave', () => {
+      pointer.set(-99, -99);
+      setHover(null);
+    });
+    stage.addEventListener('pointerdown', (e) => { downPos = { x: e.clientX, y: e.clientY }; });
+    stage.addEventListener('pointerup', (e) => {
+      const dist = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+      if (dist < 5 && hovered) {
+        state.mode = 'custom';
+        document.querySelectorAll('[data-cam]').forEach(b => b.classList.remove('active'));
+        const p = hovered.position;
+        camGoalTarget.set(p.x, hovered.userData.targetH * 0.5, p.z);
+        camGoalPos.set(p.x + 12, Math.max(10, hovered.userData.targetH + 8), p.z + 14);
+        camTransition = 1.0;
+      }
+    });
+
+    document.querySelectorAll('[data-cam]').forEach(btn => {
+      btn.addEventListener('click', () => setCameraPreset(btn.dataset.cam));
+    });
+    document.getElementById('btn-rotate').addEventListener('click', (e) => {
+      state.autoRotate = !state.autoRotate;
+      controls.autoRotate = state.autoRotate;
+      controls.autoRotateSpeed = 1.2;
+      e.currentTarget.classList.toggle('active', state.autoRotate);
+    });
+    document.getElementById('btn-theme').addEventListener('click', () => {
+      state.theme = state.theme === 'dark' ? 'light' : 'dark';
+      applyTheme();
+    });
+    document.querySelectorAll('.swatch').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.accent = btn.dataset.accent;
+        document.querySelectorAll('.swatch').forEach(b => b.classList.toggle('active', b === btn));
+        applyTheme();
+      });
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '1') setCameraPreset('iso');
+      else if (e.key === '2') setCameraPreset('top');
+      else if (e.key === '3') setCameraPreset('front');
+      else if (e.key === '4') setCameraPreset('fly');
+      else if (e.key.toLowerCase() === 'r') setCameraPreset('iso');
+      else if (e.key.toLowerCase() === 't') { state.theme = state.theme === 'dark' ? 'light' : 'dark'; applyTheme(); }
+      else if (e.key === ' ') { document.getElementById('btn-rotate').click(); }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const elapsed = clock.elapsedTime;
+
+      for (let i = 0; i < pillars.length; i++) {
+        const m = pillars[i];
+        const t = Math.max(0, Math.min(1, (elapsed - m.userData.delay) * 2.1));
+        if (t < 1 || Math.abs(m.scale.y - m.userData.targetH) > 0.002) {
+          const eased = 1 - Math.pow(1 - t, 3);
+          m.scale.y = Math.max(0.01, m.userData.targetH * eased);
+        }
+      }
+
+      if (state.mode === 'fly') {
+        state.flyTime += dt * 0.28;
+        const a = state.flyTime;
+        camera.position.lerp(new THREE.Vector3(Math.cos(a) * 34, 11 + Math.sin(a * 2) * 3.5, Math.sin(a) * 22), 0.04);
+        controls.target.lerp(new THREE.Vector3(Math.sin(a * 0.7) * 10, 2.2, 0), 0.05);
+      } else if (camTransition > 0.001) {
+        camera.position.lerp(camGoalPos, 0.08);
+        controls.target.lerp(camGoalTarget, 0.08);
+        if (camera.position.distanceTo(camGoalPos) < 0.08) camTransition = 0;
+      }
+
+      controls.update();
+
+      if (pointer.x > -2 && pillars.length) {
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(pillars, false);
+        setHover(hits.length ? hits[0].object : null);
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    fetch('./data.json')
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('missing data.json'))))
+      .then(buildSkyline)
+      .catch(() => buildSkyline(makeFallbackData()));
+
+    animate();
+  </script>
+</body>
+</html>
