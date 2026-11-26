@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate tmux terminal SVGs, isometric 3D contribution skylines, and docs/data.json.
+"""Generate tmux terminal SVGs and pure-CSS Fourier epicycle AXD SVGs.
 
 Zero third-party dependencies (Python 3.10+ stdlib only).
 Set GITHUB_TOKEN to pull live GitHub GraphQL telemetry; otherwise falls
@@ -22,7 +22,6 @@ from xml.sax.saxutils import escape
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "assets"
-DOCS = ROOT / "docs"
 
 USERNAME = os.environ.get("GITHUB_USERNAME", "AxD99999")
 TOKEN = os.environ.get("GITHUB_TOKEN", "")
@@ -72,17 +71,13 @@ THEMES = {
         "logo_bot": "#3fb950",
         "track": "#21262d",
         "bar_colors": ["#3fb950", "#58a6ff", "#d2a8ff", "#8b949e"],
-        "iso": [
-            ("#161b22", "#12161c", "#0f1318"),
-            ("#0e4429", "#0a3320", "#072517"),
-            ("#006d32", "#005226", "#003d1c"),
-            ("#26a641", "#1d8233", "#156126"),
-            ("#39d353", "#29a840", "#1e7d2f"),
-        ],
-        "iso_stroke": "#0d1117",
-        "iso_empty_stroke": "#21262d",
-        "pill_bg": "#12261e",
-        "pill_border": "#238636",
+        "ep_circle": "#58a6ff",
+        "ep_circle_op": "0.22",
+        "ep_arm": "#8b949e",
+        "ep_arm_op": "0.62",
+        "ghost_op": "0.14",
+        "grid": "#21262d",
+        "glow": "2.4",
     },
     "light": {
         "bg": "#ffffff",
@@ -100,17 +95,13 @@ THEMES = {
         "logo_bot": "#1a7f37",
         "track": "#eaeef2",
         "bar_colors": ["#1a7f37", "#0969da", "#8250df", "#656d76"],
-        "iso": [
-            ("#ebedf0", "#dfe3e8", "#d5dae0"),
-            ("#9be9a8", "#7fd88f", "#66c277"),
-            ("#40c463", "#30a650", "#24873f"),
-            ("#30a14e", "#24803d", "#1b632e"),
-            ("#216e39", "#175229", "#103b1d"),
-        ],
-        "iso_stroke": "#ffffff",
-        "iso_empty_stroke": "#d8dee4",
-        "pill_bg": "#dafbe1",
-        "pill_border": "#4ac26b",
+        "ep_circle": "#0969da",
+        "ep_circle_op": "0.20",
+        "ep_arm": "#656d76",
+        "ep_arm_op": "0.58",
+        "ghost_op": "0.13",
+        "grid": "#eaeef2",
+        "glow": "0",
     },
 }
 
@@ -271,7 +262,7 @@ def fallback_data(now: dt.datetime) -> dict:
             {"name": "Kotlin", "pct": 11},
         ],
         "recentCommits": [
-            {"sha": "a9f4c12", "repo": "AxD99999", "msg": "feat: interactive 3d skyline viewer", "age": "2h ago"},
+            {"sha": "a9f4c12", "repo": "AxD99999", "msg": "feat: pure-css fourier epicycle axd", "age": "2h ago"},
             {"sha": "97bc17b", "repo": "heos-web", "msg": "ui: update deployment card assets", "age": "1d ago"},
             {"sha": "4e81d0a", "repo": "hueshift", "msg": "perf: smooth tile transitions", "age": "3d ago"},
             {"sha": "1c09b3e", "repo": "bosstimer", "msg": "chore: tighten gcp swap watchdog", "age": "6d ago"},
@@ -512,7 +503,7 @@ def build_terminal_svg(theme_name: str, data: dict) -> str:
     parts.append(f'<rect x="1" y="{bar_y}" width="84" height="{H - bar_y - 1}" fill="{t["accent"]}"/>')
     parts.append(f'<text x="43" y="430" text-anchor="middle" class="bar-badge b">[0] axd</text>')
     parts.append(f'<text x="102" y="430" class="fg small b">1:profile*</text>')
-    parts.append(f'<text x="196" y="430" class="muted small">2:skyline-3d</text>')
+    parts.append(f'<text x="196" y="430" class="muted small">2:fourier-axd</text>')
     parts.append(
         f'<text x="834" y="430" text-anchor="end" class="muted small">'
         f'<tspan class="accent">●</tspan> {escape(TZ_LABEL)}  │  {escape(updated_short)}</text>'
@@ -571,122 +562,226 @@ def build_terminal_svg(theme_name: str, data: dict) -> str:
 """
 
 
-def build_skyline_svg(theme_name: str, data: dict) -> str:
+def _axd_closed_contour() -> list[tuple[float, float]]:
+    """Single continuous closed geometric stroke tracing A -> X -> D."""
+    return [
+        # A
+        (-280.0, 62.0),
+        (-204.0, -76.0),
+        (-128.0, 62.0),
+        (-156.0, 12.0),
+        (-252.0, 12.0),
+        (-156.0, 12.0),
+        (-128.0, 62.0),
+        # connector A -> X
+        (-70.0, 62.0),
+        # X
+        (70.0, -76.0),
+        (0.0, -7.0),
+        (-70.0, -76.0),
+        (70.0, 62.0),
+        # connector X -> D
+        (130.0, 62.0),
+        # D
+        (130.0, -76.0),
+        (206.0, -76.0),
+        (242.0, -68.0),
+        (268.0, -44.0),
+        (280.0, -7.0),
+        (268.0, 30.0),
+        (242.0, 54.0),
+        (206.0, 62.0),
+        (130.0, 62.0),
+        # return rail back to start of A
+        (-280.0, 62.0),
+    ]
+
+
+def _resample_closed(pts: list[tuple[float, float]], n_samples: int = 256) -> list[complex]:
+    dists = [0.0]
+    for i in range(1, len(pts)):
+        dists.append(dists[-1] + math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]))
+    total = dists[-1]
+    out: list[complex] = []
+    seg = 0
+    for k in range(n_samples):
+        target = (k / n_samples) * total
+        while seg < len(dists) - 2 and dists[seg + 1] < target:
+            seg += 1
+        d0, d1 = dists[seg], dists[seg + 1]
+        u = 0.0 if d1 == d0 else (target - d0) / (d1 - d0)
+        x = pts[seg][0] + u * (pts[seg + 1][0] - pts[seg][0])
+        y = pts[seg][1] + u * (pts[seg + 1][1] - pts[seg][1])
+        out.append(complex(x, y))
+    return out
+
+
+def _compute_dft(samples: list[complex]) -> tuple[complex, list[tuple[int, float, float]]]:
+    """Compute signed-frequency DFT; return (dc, sorted_ac_terms) as (freq, amp, phase)."""
+    n = len(samples)
+    dc = sum(samples) / n
+    ac: list[tuple[int, float, float]] = []
+    for freq in range(-(n // 2), n // 2):
+        if freq == 0:
+            continue
+        c = 0j
+        for idx, z in enumerate(samples):
+            ang = -2.0 * math.pi * freq * idx / n
+            c += z * complex(math.cos(ang), math.sin(ang))
+        c /= n
+        ac.append((freq, abs(c), math.atan2(c.imag, c.real)))
+    ac.sort(key=lambda item: item[1], reverse=True)
+    return dc, ac
+
+
+def build_fourier_svg(theme_name: str, data: dict) -> str:
+    """Build a pure-CSS 60fps Fourier epicycle SVG tracing AXD."""
     t = THEMES[theme_name]
     W, H = 860, 326
-    weeks = data["weeks"]
-    stats = data["stats"]
-    max_count = max(stats["peakDay"], 1)
+    CX, CY = 430.0, 174.0
+    HARMONICS = 48
+    PERIOD = 14.0
 
-    dx_w, dy_w = 12.2, 2.35
-    dx_d, dy_d = -13.6, 5.2
-    tile_scale = 0.84
-    max_tower_h = 64.0
-    base_h = 3.5
+    samples = _resample_closed(_axd_closed_contour(), 256)
+    dc, ac_all = _compute_dft(samples)
+    terms = ac_all[:HARMONICS]
 
-    min_x = 7 * dx_d
-    max_x = 52 * dx_w
-    ox = (W - (max_x - min_x)) / 2.0 - min_x
-    max_y_base = 52 * dy_w + 7 * dy_d
-    oy = 114.0 + (176.0 - max_y_base) / 2.0
+    # Evaluate exact reconstructed curve and cumulative arc length for sub-pixel trail sync
+    n_curve = 240
+    curve_pts: list[tuple[float, float]] = []
+    for i in range(n_curve):
+        frac = i / n_curve
+        z = dc
+        for freq, amp, phase in terms:
+            ang = 2.0 * math.pi * freq * frac + phase
+            z += complex(amp * math.cos(ang), amp * math.sin(ang))
+        curve_pts.append((CX + z.real, CY + z.imag))
 
-    def project(w: float, d: float, z: float = 0.0) -> tuple[float, float]:
-        return (ox + w * dx_w + d * dx_d, oy + w * dy_w + d * dy_d - z)
+    arc = [0.0]
+    for i in range(1, n_curve + 1):
+        x0, y0 = curve_pts[i - 1]
+        x1, y1 = curve_pts[i % n_curve]
+        arc.append(arc[-1] + math.hypot(x1 - x0, y1 - y0))
+    total_arc = arc[-1]
 
-    def pts(coords: list[tuple[float, float]]) -> str:
-        return " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
+    path_d = (
+        f"M {curve_pts[0][0]:.1f},{curve_pts[0][1]:.1f} "
+        + " ".join(f"L {x:.1f},{y:.1f}" for x, y in curve_pts[1:])
+        + " Z"
+    )
+
+    # Arc-length-locked keyframes for 3 concentric comet trail layers (seamless closed wrap)
+    trail_specs = [
+        ("t1", 760.0),
+        ("t2", 460.0),
+        ("t3", 96.0),
+    ]
+    n_stops = 40
+    trail_keyframes: list[str] = []
+    for cls_name, dash_w in trail_specs:
+        stops = []
+        for s_idx in range(n_stops + 1):
+            pct = (s_idx / n_stops) * 100.0
+            c_idx = round((s_idx / n_stops) * n_curve)
+            s_val = (arc[c_idx] / total_arc) * 1000.0
+            offset = dash_w - s_val
+            stops.append(f"{pct:.1f}%{{stroke-dashoffset:{offset:.1f}}}")
+        trail_keyframes.append(f"@keyframes {cls_name}{{{' '.join(stops)}}}")
+
+    # Nested relative-rotation epicycle chain: exact algebraic sum in native CSS transforms
+    ep_css_rules: list[str] = []
+    ep_open: list[str] = []
+    ep_close: list[str] = []
+
+    dc_x, dc_y = CX + dc.real, CY + dc.imag
+    ep_open.append(f'<g transform="translate({dc_x:.2f},{dc_y:.2f})">')
+    ep_close.append("</g>")
+
+    prev_freq = 0
+    prev_phi = 0.0
+    for idx, (freq, amp, phase) in enumerate(terms):
+        rel_freq = freq - prev_freq
+        rel_phi_deg = math.degrees(phase - prev_phi)
+        end_deg = rel_phi_deg + 360.0 * rel_freq
+
+        ep_css_rules.append(
+            f".e{idx}{{animation:r{idx} {PERIOD:.1f}s linear infinite}}"
+            f"@keyframes r{idx}{{from{{transform:rotate({rel_phi_deg:.2f}deg)}}"
+            f"to{{transform:rotate({end_deg:.2f}deg)}}}}"
+        )
+
+        # Draw circle & arm for visually meaningful harmonics; keep all 48 in transform chain
+        circle_el = f'<circle class="ec" r="{amp:.2f}"/>' if amp >= 2.2 else ""
+        arm_el = f'<line class="ea" x2="{amp:.2f}"/>' if amp >= 1.2 else ""
+        joint_el = '<circle class="ej" r="1.4"/>' if amp >= 4.0 else ""
+
+        ep_open.append(f'{circle_el}<g class="ep e{idx}">{arm_el}{joint_el}<g transform="translate({amp:.2f},0)">')
+        ep_close.append("</g></g>")
+
+        prev_freq = freq
+        prev_phi = phase
+
+    # Stylus tip glowing at the end of the 48-arm chain
+    stylus_el = '<circle class="tip-halo" r="7.5"/><circle class="tip-core" r="3.2"/>'
+    epicycle_chain = "".join(ep_open) + stylus_el + "".join(reversed(ep_close))
+
+    # Mini harmonic spectrum bars (top 16 amplitudes) in bottom-left HUD
+    max_amp = terms[0][1] if terms else 1.0
+    spec_bars = []
+    for i, (_, amp, _) in enumerate(terms[:16]):
+        bh = max(2.5, (amp / max_amp) * 14.0)
+        bx = 26 + i * 6
+        by = H - 14 - bh
+        op = 0.95 if i < 4 else 0.45
+        spec_bars.append(
+            f'<rect x="{bx}" y="{by:.1f}" width="3.5" height="{bh:.1f}" rx="1" '
+            f'fill="{t["accent"]}" opacity="{op:.2f}"/>'
+        )
 
     parts: list[str] = []
     parts.append(f'<rect class="win" x="1" y="1" width="{W-2}" height="{H-2}" rx="10"/>')
 
+    # Subtle background coordinate scope centered on DC origin
+    parts.append(
+        f'<g class="scope">'
+        f'<line x1="24" y1="{dc_y:.1f}" x2="{W - 24}" y2="{dc_y:.1f}" class="grid-line"/>'
+        f'<line x1="{dc_x:.1f}" y1="48" x2="{dc_x:.1f}" y2="{H - 36}" class="grid-line"/>'
+        f'<circle cx="{dc_x:.1f}" cy="{dc_y:.1f}" r="55" class="grid-ring"/>'
+        f'<circle cx="{dc_x:.1f}" cy="{dc_y:.1f}" r="110" class="grid-ring"/>'
+        f'<circle cx="{dc_x:.1f}" cy="{dc_y:.1f}" r="165" class="grid-ring"/>'
+        f"</g>"
+    )
+
+    # Header bar
     parts.append(
         f'<text x="26" y="30" class="fg b small">'
-        f'<tspan class="accent">●</tspan> skyline-3d'
-        f'<tspan class="muted" font-weight="400">  ·  {stats["total"]:,} contributions  ·  '
-        f'{stats["peakWeek"]}/wk peak  ·  {stats["streak"]}d streak</tspan></text>'
+        f'<tspan class="accent">●</tspan> fourier-axd'
+        f'<tspan class="muted" font-weight="400">  ·  DFT epicycles  ·  N={HARMONICS} harmonics</tspan></text>'
+    )
+    parts.append(
+        f'<text x="{W - 26}" y="30" text-anchor="end" class="muted tiny">'
+        f'z(t) = Σ cₖ · e^(iωₖt)</text>'
     )
 
-    pill_x, pill_y, pill_w, pill_h = 708, 13, 128, 24
+    # Ghost guide + 3-layer seamless phosphor comet trail
+    glow_attr = ' filter="url(#fglow)"' if t["glow"] != "0" else ""
+    parts.append(f'<path class="ghost" d="{path_d}"/>')
+    parts.append(f'<path class="tr tr1" pathLength="1000" d="{path_d}"/>')
+    parts.append(f'<path class="tr tr2" pathLength="1000" d="{path_d}"{glow_attr}/>')
+    parts.append(f'<path class="tr tr3" pathLength="1000" d="{path_d}"{glow_attr}/>')
+
+    # Nested spinning epicycle machine
+    parts.append(epicycle_chain)
+
+    # Footer HUD + mini harmonic spectrum
+    parts.append("<g>" + "".join(spec_bars) + "</g>")
     parts.append(
-        f'<g class="cta">'
-        f'<rect x="{pill_x}" y="{pill_y}" width="{pill_w}" height="{pill_h}" rx="12" '
-        f'fill="{t["pill_bg"]}" stroke="{t["pill_border"]}" stroke-width="1"/>'
-        f'<text x="{pill_x + pill_w / 2:.1f}" y="{pill_y + 16}" text-anchor="middle" '
-        f'class="accent b pill-txt">Explore in 3D ↗</text></g>'
+        f'<text x="132" y="{H - 16}" class="muted tiny">'
+        f'spectrum |cₖ|  ·  T={int(PERIOD)}s  ·  pure CSS</text>'
     )
-
-    pad = 0.7
-    plinth_top = [
-        project(-pad, -pad, 0),
-        project(52 + pad, -pad, 0),
-        project(52 + pad, 7 + pad, 0),
-        project(-pad, 7 + pad, 0),
-    ]
-    plinth_left = [
-        project(-pad, 7 + pad, 0),
-        project(52 + pad, 7 + pad, 0),
-        project(52 + pad, 7 + pad, -6),
-        project(-pad, 7 + pad, -6),
-    ]
-    plinth_right = [
-        project(52 + pad, 7 + pad, 0),
-        project(52 + pad, -pad, 0),
-        project(52 + pad, -pad, -6),
-        project(52 + pad, 7 + pad, -6),
-    ]
-    parts.append(f'<polygon points="{pts(plinth_left)}" fill="{t["rule"]}"/>')
-    parts.append(f'<polygon points="{pts(plinth_right)}" fill="{t["border"]}" opacity="0.65"/>')
     parts.append(
-        f'<polygon points="{pts(plinth_top)}" fill="{t["surface"]}" '
-        f'stroke="{t["border"]}" stroke-width="0.9"/>'
-    )
-
-    pillars: list[str] = []
-    inset = (1.0 - tile_scale) / 2.0
-    for w_idx, col in enumerate(weeks):
-        for d_idx, day in enumerate(col):
-            cnt = int(day["count"])
-            lvl = max(0, min(4, int(day["level"])))
-
-            w0, w1 = w_idx + inset, w_idx + 1.0 - inset
-            d0, d1 = d_idx + inset, d_idx + 1.0 - inset
-
-            if cnt <= 0:
-                p_top = [project(w0, d0, 0), project(w1, d0, 0), project(w1, d1, 0), project(w0, d1, 0)]
-                pillars.append(f'<polygon class="e" points="{pts(p_top)}"/>')
-                continue
-
-            ratio = math.sqrt(cnt / max_count)
-            h = base_h + ratio * (max_tower_h - base_h)
-
-            top_face = [project(w0, d0, h), project(w1, d0, h), project(w1, d1, h), project(w0, d1, h)]
-            left_face = [project(w0, d1, h), project(w1, d1, h), project(w1, d1, 0), project(w0, d1, 0)]
-            right_face = [project(w1, d1, h), project(w1, d0, h), project(w1, d0, 0), project(w1, d1, 0)]
-
-            cls_attr = ' class="peak"' if lvl == 4 else ""
-            delay_attr = f' style="animation-delay:{(w_idx % 8) * 0.35:.2f}s"' if lvl == 4 else ""
-            pillars.append(
-                f'<g{cls_attr}{delay_attr}>'
-                f'<polygon class="p l{lvl}" points="{pts(left_face)}"/>'
-                f'<polygon class="p r{lvl}" points="{pts(right_face)}"/>'
-                f'<polygon class="p t{lvl}" points="{pts(top_face)}"/>'
-                f'</g>'
-            )
-
-    parts.append("<g>\n    " + "\n    ".join(pillars) + "\n  </g>")
-
-    leg_y = H - 18
-    parts.append(f'<text x="26" y="{leg_y}" class="muted tiny">Less</text>')
-    for i in range(5):
-        lx = 62 + i * 15
-        parts.append(
-            f'<rect x="{lx}" y="{leg_y - 9}" width="10" height="10" rx="2" '
-            f'fill="{t["iso"][i][0]}" stroke="{t["border"]}" stroke-width="0.5"/>'
-        )
-    parts.append(f'<text x="142" y="{leg_y}" class="muted tiny">More</text>')
-    parts.append(
-        f'<text x="{W - 26}" y="{leg_y}" text-anchor="end" class="muted tiny">'
-        f'click to orbit, zoom &amp; inspect in WebGL</text>'
+        f'<text x="{W - 26}" y="{H - 16}" text-anchor="end" class="muted tiny">'
+        f'{escape(data["username"])} · closed-contour DFT</text>'
     )
 
     css = f"""
@@ -697,34 +792,48 @@ def build_skyline_svg(theme_name: str, data: dict) -> str:
     .accent {{ fill: {t['accent']}; }}
     .b {{ font-weight: 700; }}
     .small {{ font-size: 12.2px; }}
-    .pill-txt {{ font-size: 11px; }}
     .tiny {{ font-size: 11px; }}
-    .e {{ fill: {t['iso'][0][0]}; stroke: {t['iso_empty_stroke']}; stroke-width: 0.45; }}
-    .p {{ stroke: {t['iso_stroke']}; stroke-width: 0.35; stroke-linejoin: round; }}
-    .t1 {{ fill: {t['iso'][1][0]}; }} .l1 {{ fill: {t['iso'][1][1]}; }} .r1 {{ fill: {t['iso'][1][2]}; }}
-    .t2 {{ fill: {t['iso'][2][0]}; }} .l2 {{ fill: {t['iso'][2][1]}; }} .r2 {{ fill: {t['iso'][2][2]}; }}
-    .t3 {{ fill: {t['iso'][3][0]}; }} .l3 {{ fill: {t['iso'][3][1]}; }} .r3 {{ fill: {t['iso'][3][2]}; }}
-    .t4 {{ fill: {t['iso'][4][0]}; }} .l4 {{ fill: {t['iso'][4][1]}; }} .r4 {{ fill: {t['iso'][4][2]}; }}
-    .peak {{ animation: shimmer 3.6s ease-in-out infinite; }}
-    @keyframes shimmer {{
-      0%, 100% {{ opacity: 1; }}
-      50% {{ opacity: 0.78; }}
-    }}
+    .grid-line {{ stroke: {t['grid']}; stroke-width: 1; stroke-dasharray: 3 4; }}
+    .grid-ring {{ fill: none; stroke: {t['grid']}; stroke-width: 0.9; stroke-dasharray: 2 5; }}
+    .ghost {{ fill: none; stroke: {t['accent']}; stroke-width: 1.6; opacity: {t['ghost_op']}; stroke-linejoin: round; stroke-linecap: round; }}
+    .tr {{ fill: none; stroke-linejoin: round; stroke-linecap: round; }}
+    .tr1 {{ stroke: {t['accent']}; stroke-width: 2.6; opacity: 0.32; stroke-dasharray: 760 240; animation: t1 {PERIOD:.1f}s linear infinite; }}
+    .tr2 {{ stroke: {t['accent']}; stroke-width: 2.8; opacity: 0.92; stroke-dasharray: 460 540; animation: t2 {PERIOD:.1f}s linear infinite; }}
+    .tr3 {{ stroke: {t['accent_hi']}; stroke-width: 3.0; opacity: 1; stroke-dasharray: 96 904; animation: t3 {PERIOD:.1f}s linear infinite; }}
+    .ep {{ transform-origin: 0px 0px; transform-box: view-box; }}
+    .ec {{ fill: none; stroke: {t['ep_circle']}; stroke-width: 0.85; opacity: {t['ep_circle_op']}; }}
+    .ea {{ stroke: {t['ep_arm']}; stroke-width: 1.05; opacity: {t['ep_arm_op']}; stroke-linecap: round; }}
+    .ej {{ fill: {t['ep_arm']}; opacity: 0.55; }}
+    .tip-halo {{ fill: {t['accent']}; opacity: 0.28; }}
+    .tip-core {{ fill: {t['accent_hi']}; }}
+    {"".join(trail_keyframes)}
+    {"".join(ep_css_rules)}
     @media (prefers-reduced-motion: reduce) {{
-      .peak {{ animation: none !important; opacity: 1; }}
+      .ep, .tr {{ animation: none !important; }}
+      .ghost {{ opacity: 0.9; stroke-width: 2.5; }}
+      .tr1, .tr2, .tr3 {{ display: none; }}
     }}"""
 
+    glow_def = (
+        f'<filter id="fglow" x="-15%" y="-15%" width="130%" height="130%">'
+        f'<feGaussianBlur stdDeviation="{t["glow"]}" result="b"/>'
+        f'<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>'
+        f"</filter>"
+        if t["glow"] != "0"
+        else ""
+    )
     defs = f"""<defs>
-    <clipPath id="sframe"><rect x="1" y="1" width="{W-2}" height="{H-2}" rx="10"/></clipPath>
+    {glow_def}
+    <clipPath id="fframe"><rect x="1" y="1" width="{W-2}" height="{H-2}" rx="10"/></clipPath>
   </defs>"""
 
     body = "\n  ".join(parts)
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-labelledby="st">
-  <title id="st">{escape(data['username'])} — 3D contribution skyline</title>
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-labelledby="ft">
+  <title id="ft">{escape(data['username'])} — Fourier epicycle series tracing AXD</title>
   <style>{css}
   </style>
   {defs}
-  <g clip-path="url(#sframe)">
+  <g clip-path="url(#fframe)">
   {body}
   </g>
 </svg>
@@ -736,20 +845,15 @@ def main() -> None:
     data = fetch_github_data(now)
 
     ASSETS.mkdir(parents=True, exist_ok=True)
-    DOCS.mkdir(parents=True, exist_ok=True)
 
     for theme_name in THEMES:
         term_path = ASSETS / f"terminal-{theme_name}.svg"
         term_path.write_text(build_terminal_svg(theme_name, data), encoding="utf-8")
         print(f"wrote {term_path.relative_to(ROOT)}")
 
-        sky_path = ASSETS / f"skyline-{theme_name}.svg"
-        sky_path.write_text(build_skyline_svg(theme_name, data), encoding="utf-8")
-        print(f"wrote {sky_path.relative_to(ROOT)}")
-
-    data_path = DOCS / "data.json"
-    data_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    print(f"wrote {data_path.relative_to(ROOT)}")
+        fourier_path = ASSETS / f"fourier-{theme_name}.svg"
+        fourier_path.write_text(build_fourier_svg(theme_name, data), encoding="utf-8")
+        print(f"wrote {fourier_path.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
